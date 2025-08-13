@@ -2,12 +2,13 @@ import cellxgene_census
 import pandas as pd
 from src.utils.ontology_utils import get_sub_DAG
 
-def load_filtered_cell_metadata(root_cl_id: str, min_cell_count: int = 5000) -> pd.DataFrame:
+def load_filtered_cell_metadata(cl, root_cl_id: str, min_cell_count: int = 5000) -> pd.DataFrame:
     """
     Loads cell metadata from the CellXGene Census, filters for descendants of a given
     root CL ID with a minimum count, and returns the filtered metadata.
 
     Args:
+        cl (pronto.Ontology): The loaded Cell Ontology object.
         root_cl_id (str): The root Cell Ontology ID (e.g., "CL:0000988") to define the subgraph.
         min_cell_count (int): The minimum number of cells for a cell type to be included.
 
@@ -16,7 +17,7 @@ def load_filtered_cell_metadata(root_cl_id: str, min_cell_count: int = 5000) -> 
     """
     # Get all descendants of the root CL ID
     print(f"Fetching descendants of {root_cl_id}...")
-    descendant_cell_types = get_sub_DAG(root_cl_id)
+    descendant_cell_types = get_sub_DAG(cl, root_cl_id)
 
     if not descendant_cell_types:
         print(f"No descendants found for {root_cl_id}. Aborting.")
@@ -44,7 +45,8 @@ def load_filtered_cell_metadata(root_cl_id: str, min_cell_count: int = 5000) -> 
             return pd.DataFrame()
 
         # Build the value filter for the final query
-        obs_val_filter = f"assay == '10x 3' v3' and is_primary_data == True and cell_type_ontology_term_id in {intersection_cell_types}"
+        # Use .format() to handle quotes in the assay name safely
+        obs_val_filter = '''assay == "10x 3' v3" and is_primary_data == True and cell_type_ontology_term_id in {}'''.format(intersection_cell_types)
 
         print("Querying for final cell metadata...")
         cell_obs_metadata = (

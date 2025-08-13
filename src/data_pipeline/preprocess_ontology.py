@@ -3,16 +3,9 @@ import torch
 import pronto
 from src.utils.paths import PROJECT_ROOT
 
-# Load the Cell Ontology globally for this module
-print("Loading Cell Ontology (will download if necessary)...")
-try:
-    cl = pronto.Ontology.from_obo_library('cl.owl')
-    print("Ontology loaded successfully.")
-except Exception as e:
-    print(f"Failed to load ontology: {e}")
-    cl = None
+INTERNAL_NODE_ENCODING_START = -9999
 
-def set_internal_node_values(internal_values, all_parent_nodes):
+def set_internal_node_values(cl, internal_values, all_parent_nodes):
     """
     Creates a dictionary where each key is an internal cell type and the values are the cell types
     we want to include when calculating the loss. We do not want to consider direct descendents of the
@@ -20,7 +13,7 @@ def set_internal_node_values(internal_values, all_parent_nodes):
     """
     parent_dict = {}
     for internal_node in internal_values:
-        child_nodes = [term.id for term in cl[internal_node].subclasses(with_self=False)]
+        child_nodes = [term.id for term in cl[internal_node].subclasses(with_self=True)]
         cell_types_to_include = [x for x in all_parent_nodes if x not in child_nodes]
         parent_dict[internal_node] = cell_types_to_include
     return parent_dict
@@ -42,42 +35,42 @@ def build_parent_mask(leaf_values, internal_values, ontology_df, parent_dict):
 
     return cell_parents_mask
 
-def preprocess_data_ontology(labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
+def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
     """
     This function performs preprocessing on an AnnData object to prepare it for modelling.
-    It uses the pre-built ontology metadata as the source of truth for leaf/internal status.
     """
-    # Load ontology metadata
-    metadata_path = PROJECT_ROOT / "data" / "processed" / "ontology_metadata.parquet"
-    ontology_metadata = pd.read_parquet(metadata_path)
-
     all_cell_values = labels[target_column].astype('category').unique().tolist()
 
     mapping_dict = {}
     leaf_values = []
     internal_values = []
     encoded_leaf_val = 0
-    encoded_internal_val = -9999
+    encoded_internal_val = INTERNAL_NODE_ENCODING_START
 
-    for term in all_cell_values:
-        # Use pre-calculated metadata as the single source of truth
-        is_leaf = ontology_metadata.loc[term, 'cl_idx'] > 0
-
-        if is_leaf:
-            mapping_dict[term] = encoded_leaf_val
-            leaf_values.append(term)
-            encoded_leaf_val += 1
-        else: # It's an internal node
-            mapping_dict[term] = encoded_internal_val
-            internal_values.append(term)
-            encoded_internal_val += 1
+    for term_id in all_cell_values:
+        try:
+            term = cl[term_id]
+            if term.is_leaf():
+                mapping_dict[term.id] = encoded_leaf_val
+                leaf_values.append(term.id)
+                encoded_leaf_val += 1
+            else:
+                mapping_dict[term.id] = encoded_internal_val
+                internal_values.append(term.id)
+                encoded_internal_val += 1
+        except KeyError:
+            print(f"Warning: Term ID {term_id} not found in ontology. Skipping.")
+            continue
 
     labels['encoded_labels'] = labels[target_column].map(mapping_dict)
 
     all_parent_nodes = []
     for target in all_cell_values:
-        for term in cl[target].superclasses(with_self=include_leafs):
-            all_parent_nodes.append(term.id)
+        try:
+            for term in cl[target].superclasses(with_self=include_leafs):
+                all_parent_nodes.append(term.id)
+        except KeyError:
+            continue
 
     all_parent_nodes = list(set(all_parent_nodes))
 
@@ -85,17 +78,23 @@ def preprocess_data_ontology(labels, target_column, upper_limit=None, cl_only=Fa
         all_parent_nodes = [x for x in all_parent_nodes if x.startswith('CL')]
 
     if upper_limit is not None:
-        upper_limit_nodes = [term.id for term in cl[upper_limit].superclasses(with_self=False)]
-        all_parent_nodes = [x for x in all_parent_nodes if x not in upper_limit_nodes]
+        try:
+            upper_limit_nodes = [term.id for term in cl[upper_limit].superclasses(with_self=False)]
+            all_parent_nodes = [x for x in all_parent_nodes if x not in upper_limit_nodes]
+        except KeyError:
+            pass
 
-    parent_dict = set_internal_node_values(internal_values, all_parent_nodes)
+    parent_dict = set_internal_node_values(cl, internal_values, all_parent_nodes)
 
     ontology_df = pd.DataFrame(data=0, index=all_parent_nodes, columns=all_cell_values)
 
     for cell_id in ontology_df.index:
-        for term in cl[cell_id].subclasses(with_self=True):
-            if term.id in ontology_df.columns:
-                ontology_df.loc[cell_id, [term.id]] = 1
+        try:
+            for term in cl[cell_id].subclasses(with_self=True):
+                if term.id in ontology_df.columns:
+                    ontology_df.loc[cell_id, [term.id]] = 1
+        except KeyError:
+            continue
 
     cell_parent_mask = build_parent_mask(leaf_values, internal_values, ontology_df, parent_dict)
 

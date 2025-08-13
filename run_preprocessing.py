@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 import pickle
 from datetime import datetime
+from src.utils.ontology_utils import load_ontology
 from src.data_pipeline.data_loader import load_filtered_cell_metadata
 from src.data_pipeline.preprocess_ontology import preprocess_data_ontology
 from src.utils.paths import PROJECT_ROOT
@@ -12,30 +13,35 @@ def main():
     """
     print("Starting data preprocessing pipeline...")
 
+    # 1. Load the cached ontology object
+    cl = load_ontology()
+    if cl is None:
+        return
+
     # Define the root of the ontology subgraph to be processed
     root_cl_id = 'CL:0000988'  # hematopoietic cell
 
-    # 1. Load filtered cell metadata from CellXGene Census
-    cell_obs_metadata = load_filtered_cell_metadata(root_cl_id=root_cl_id)
+    # 2. Load filtered cell metadata from CellXGene Census
+    cell_obs_metadata = load_filtered_cell_metadata(cl, root_cl_id=root_cl_id)
 
     if cell_obs_metadata.empty:
         print("No cell metadata loaded. Aborting pipeline.")
         return
 
-    # 2. Preprocess the ontology and cell data
+    # 3. Preprocess the ontology and cell data
     target_column = 'cell_type_ontology_term_id'
 
     print("Starting ontology preprocessing...")
     mapping_dict, leaf_values, internal_values, \
         ontology_df, parent_dict, cell_parent_mask = preprocess_data_ontology(
-            cell_obs_metadata, target_column,
+            cl, cell_obs_metadata, target_column,
             upper_limit=root_cl_id,
             cl_only=True, include_leafs=False
         )
 
     print(f"Preprocessing complete. Found {len(leaf_values)} leaf values and {len(internal_values)} internal values.")
 
-    # 3. Save the preprocessed artifacts
+    # 4. Save the preprocessed artifacts
     output_dir = PROJECT_ROOT / "data" / "processed"
     today = datetime.today().strftime('%Y-%m-%d')
 
@@ -66,4 +72,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
