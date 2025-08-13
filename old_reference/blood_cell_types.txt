@@ -1,0 +1,13 @@
+# Blood Cell Types and their corresponding Ontology IDs
+
+Granulocyte:CL:0000094
+Erythrocyte:CL:0000232
+Prog MK:CL:0000553
+MPP:CL:0000837
+GMP:CL:0000557
+HSC:CL:0000037
+LMPP:CL:0000936
+MEP:CL:0000050
+Prog DC:CL:0002009
+Platelet:CL:0000233
+Prog B:CL:0000826
