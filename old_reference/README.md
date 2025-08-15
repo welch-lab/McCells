@@ -1,6 +1,6 @@
 # McCells
 
-Modeling of the CZI Cell Sensus to hierarchically classify cell types. Brief explanation of each program in this repo. There are more details in each file.  
+Modeling of the CZI Cell Census to hierarchically classify cell types. Brief explanation of each program in this repo. There are more details in each file.  
 
 
 ```download_cell_census```: downloads an AnnData object from the Cell Census with cell and gene metadata filtering
