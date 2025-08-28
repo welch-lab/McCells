@@ -11,7 +11,14 @@ if [ ! -f "$LINKS_FILE" ]; then
     exit 1
 fi
 
-echo "Starting download..."
-wget --input-file="$LINKS_FILE" --continue --directory-prefix=/nfs/turbo/umms-welchjd/Mccells-data
+echo "Converting S3 URIs to HTTPS URLs and starting download..."
+# Create a temporary file for the https links
+HTTPS_LINKS_FILE=$(mktemp)
+sed 's|s3://cellxgene-census-public-us-west-2/|https://cellxgene-census-public-us-west-2.s3.us-west-2.amazonaws.com/|' "$LINKS_FILE" > "$HTTPS_LINKS_FILE"
+
+wget --input-file="$HTTPS_LINKS_FILE" --continue --directory-prefix=/nfs/turbo/umms-welchjd/Mccells-data
+
+# Clean up the temporary file
+rm "$HTTPS_LINKS_FILE"
 
 echo "Download complete."
