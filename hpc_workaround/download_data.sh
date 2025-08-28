@@ -1,4 +1,11 @@
 #!/bin/bash
+#SBATCH --job-name=wget_download
+#SBATCH --output=wget_download_%j.out
+#SBATCH --error=wget_download_%j.err
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=1G
+#SBATCH --time=1:00:00
 
 # This script downloads the H5AD files listed in h5ad_links.txt using wget.
 
