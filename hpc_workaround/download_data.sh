@@ -1,4 +1,5 @@
 #!/bin/bash
+#!/bin/bash
 #SBATCH --job-name=wget_download
 #SBATCH --output=wget_download_%j.out
 #SBATCH --error=wget_download_%j.err
@@ -6,12 +7,13 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1G
 #SBATCH --time=1:00:00
+#SBATCH --partition=sigbio
 
 # This script downloads the H5AD files listed in h5ad_links.txt using wget.
 
 # Get the directory of the current script
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
-LINKS_FILE="$SCRIPT_DIR/h5ad_links.txt"
+LINKS_FILE="/home/jingqiao/test/h5ad_links.txt"
 
 if [ ! -f "$LINKS_FILE" ]; then
     echo "Error: $LINKS_FILE not found. Please run get_h5ad_links.py first."
