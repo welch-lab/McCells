@@ -25,7 +25,7 @@ echo "Converting S3 URIs to HTTPS URLs and starting download..."
 HTTPS_LINKS_FILE=$(mktemp)
 sed 's|s3://cellxgene-census-public-us-west-2/|https://cellxgene-census-public-us-west-2.s3.us-west-2.amazonaws.com/|' "$LINKS_FILE" > "$HTTPS_LINKS_FILE"
 
-wget --input-file="$HTTPS_LINKS_FILE" --continue --directory-prefix=/nfs/turbo/umms-welchjd/Mccells-data
+wget --input-file="$HTTPS_LINKS_FILE" --continue --directory-prefix=/scratch/sigbio_project_root/sigbio_project25/jingqiao/mccell-single
 
 # Clean up the temporary file
 rm "$HTTPS_LINKS_FILE"
