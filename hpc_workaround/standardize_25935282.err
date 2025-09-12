@@ -1,0 +1,2 @@
+/var/spool/slurmd.spool/job25935282/slurm_script: line 19: 1884661 Killed                  /home/jingqiao/test/myenv_py312/bin/python /home/jingqiao/real_McCell/hpc_workaround/standardize_h5ad_indices.py
+slurmstepd: error: Detected 1 oom_kill event in StepId=25935282.batch. Some of the step tasks have been OOM Killed.

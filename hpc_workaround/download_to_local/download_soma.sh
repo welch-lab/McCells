@@ -1,9 +1,13 @@
 #!/bin/bash
-set -e
+#SBATCH --job-name=wget_download
+#SBATCH --output=wget_download_%j.out
+#SBATCH --error=wget_download_%j.err
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=1G
+#SBATCH --time=1:00:00
+#SBATCH --partition=sigbio
 
-# This script downloads the CELLxGENE Census SOMA data for a specific release.
-# It uses wget to recursively download the directory from S3.
-# NOTE: The recommended tool for this is 'aws s3 sync'. This script is a workaround.
 
 RELEASE_TAG="2025-01-30"
 BASE_URL="https://cellxgene-census-public-us-west-2.s3.us-west-2.amazonaws.com"
