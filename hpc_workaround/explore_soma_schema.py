@@ -11,22 +11,18 @@ pd.set_option('display.width', 160)
 # Path to your local SOMA database
 local_soma_path = "/scratch/sigbio_project_root/sigbio_project25/jingqiao/mccell-single/soma_db_homo_sapiens"
 
-# --- Exploration Script ---
 
 print(f"--- Exploring the schema of SOMA database at: {local_soma_path} ---\\n")
 
 try:
     with soma.Experiment.open(local_soma_path) as census:
 
-        # --- 1. Cell Metadata (`obs`) ---
         print("--- Cell Metadata (`obs`) ---")
         print("The `obs` dataframe contains metadata for each cell. Each row is a cell, each column is an attribute.")
 
-        # Get and print all column names
         obs_columns = census.obs.keys()
         print(f"\nAvailable `obs` columns ({len(obs_columns)} total): {obs_columns}")
 
-        # Read and print the first 5 rows with a selection of important columns
         print("\nExample data from the first 5 cells:")
         # We select a subset of columns to make the output readable
         obs_preview_columns = ['soma_joinid', 'dataset_id', 'assay', 'cell_type', 'tissue', 'disease', 'sex']
@@ -34,21 +30,17 @@ try:
         print(obs_head)
         print("\n" + "=" * 80 + "\n")
 
-        # --- 2. Gene Metadata (`var`) ---
         print("--- Gene Metadata (`var`) ---")
         print("The `var` dataframe contains metadata for each gene (feature). Each row is a gene.")
 
-        # Get and print all column names
         var_columns = census.ms['RNA'].var.keys()
         print(f"\nAvailable `var` columns ({len(var_columns)} total): {var_columns}")
 
-        # Read and print the first 5 rows
         print("\nExample data from the first 5 genes:")
         var_head = census.ms['RNA'].var.read(limit=5).concat().to_pandas()
         print(var_head)
         print("\n" + "=" * 80 + "\n")
 
-        # --- 3. Expression Data (`X['raw']`) ---
         print("--- Expression Data (`X['raw']`) ---")
         print("The `X` matrix contains the actual expression counts. It's a very large sparse matrix where:")
         print("- Rows correspond to cells (indexed by `soma_joinid` from the `obs` table).")
