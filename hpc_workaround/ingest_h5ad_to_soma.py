@@ -5,7 +5,7 @@ import glob
 
 # --- Configuration ---
 # The directory where you downloaded the H5AD files
-H5AD_DIR = "/scratch/sigbio_project_root/sigbio_project25/jingqiao/mccell-single"
+H5AD_DIR = "/scratch/sigbio_project_root/sigbio_project25/jingqiao/mccell-singleseq"
 
 # The URI for the new SOMA Experiment that will be created
 EXPERIMENT_URI = os.path.join(H5AD_DIR, "soma_experiment")
@@ -17,8 +17,8 @@ def ingest_h5ad_files():
     """
     Ingests a directory of H5AD files into a single TileDB-SOMA Experiment.
     """
-    h5ad_files = glob.glob(os.path.join(H5AD_DIR, "*.h5ad"))
-
+    h5ad_files = glob.glob(os.path.join(H5AD_DIR, "*.h5ad"))[:2]
+    
     if not h5ad_files:
         print(f"No H5AD files found in {H5AD_DIR}")
         return
@@ -26,12 +26,16 @@ def ingest_h5ad_files():
     print(f"Found {len(h5ad_files)} H5AD files to ingest.")
 
     # 1. Register all H5AD files to create a unified schema
+    # This will create new 'cell_id' and 'gene_id' columns in the SOMA experiment
+    # based on the index of each H5AD file.
     print("Registering H5AD files...")
     registration_mapping = tiledbsoma.io.register_h5ads(
         EXPERIMENT_URI,
         h5ad_file_names=h5ad_files,
         measurement_name=MEASUREMENT_NAME,
-        # Use the default index for obs_id and var_id
+        obs_field_name="cell_id",
+        var_field_name="gene_id",
+        append_obsm_varm=True,
     )
 
     # 2. Ingest each H5AD file into the SOMA Experiment
@@ -48,7 +52,7 @@ def ingest_h5ad_files():
 
     print(f"\nSuccessfully ingested {len(h5ad_files)} H5AD files into {EXPERIMENT_URI}")
 
-    # --- Verify the result (optional) ---
+    # --- Verify the result ---
     with tiledbsoma.open(EXPERIMENT_URI) as exp:
         print("\nExperiment summary:")
         print(exp)
