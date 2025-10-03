@@ -3,67 +3,20 @@ import torch
 import pronto
 from src.utils.paths import PROJECT_ROOT
 
-INTERNAL_NODE_ENCODING_START = -9999
 
-def set_internal_node_values(cl, internal_values, all_parent_nodes):
-    """
-    Creates a dictionary where each key is an internal cell type and the values are the cell types
-    we want to include when calculating the loss. We do not want to consider direct descendents of the
-    internal cell type, so those are removed.
-    """
-    parent_dict = {}
-    for internal_node in internal_values:
-        child_nodes = [term.id for term in cl[internal_node].subclasses(with_self=True)]
-        cell_types_to_include = [x for x in all_parent_nodes if x not in child_nodes]
-        parent_dict[internal_node] = cell_types_to_include
-    return parent_dict
-
-def build_parent_mask(leaf_values, internal_values, ontology_df, parent_dict):
-    """
-    Builds a masking matrix for use when calculating the internal loss.
-    """
-    num_leafs = len(leaf_values)
-    num_parents = ontology_df.shape[0]
-    cell_parents_mask = torch.ones(num_parents, num_leafs)
-    list_of_parents = ontology_df.index.tolist()
-
-    for cell_id in internal_values:
-        parent_list_for_cell = parent_dict[cell_id]
-        parent_binary_list = [1 if parent in parent_list_for_cell else 0 for parent in list_of_parents]
-        parent_binary_tensor = torch.tensor(parent_binary_list).reshape(-1, 1)
-        cell_parents_mask = torch.cat((cell_parents_mask, parent_binary_tensor), 1)
-
-    return cell_parents_mask
-
-def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
-    """
-    This function performs preprocessing on an AnnData object to prepare it for modelling.
-    """
-    all_cell_values = labels[target_column].astype('category').unique().tolist()
-
-    mapping_dict = {}
+def create_mapping_dicts(all_cell_values, cl):
+    mapping_dict = {term_id: i for i, term_id in enumerate(all_cell_values)}
     leaf_values = []
     internal_values = []
-    encoded_leaf_val = 0
-    encoded_internal_val = INTERNAL_NODE_ENCODING_START
-
     for term_id in all_cell_values:
-        try:
-            term = cl[term_id]
-            if term.is_leaf():
-                mapping_dict[term.id] = encoded_leaf_val
-                leaf_values.append(term.id)
-                encoded_leaf_val += 1
-            else:
-                mapping_dict[term.id] = encoded_internal_val
-                internal_values.append(term.id)
-                encoded_internal_val += 1
-        except KeyError:
-            print(f"Warning: Term ID {term_id} not found in ontology. Skipping.")
-            continue
+        if cl[term_id].is_leaf():
+            leaf_values.append(term_id)
+        else:
+            internal_values.append(term_id)
+    return mapping_dict, leaf_values, internal_values
 
-    labels['encoded_labels'] = labels[target_column].map(mapping_dict)
 
+def get_parent_nodes(all_cell_values, cl, upper_limit=None, cl_only=False, include_leafs=False):
     all_parent_nodes = []
     for target in all_cell_values:
         try:
@@ -72,7 +25,7 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
         except KeyError:
             continue
 
-    all_parent_nodes = list(set(all_parent_nodes))
+    all_parent_nodes = sorted(list(set(all_parent_nodes)))
 
     if cl_only:
         all_parent_nodes = [x for x in all_parent_nodes if x.startswith('CL')]
@@ -84,10 +37,11 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
         except KeyError:
             pass
 
-    parent_dict = set_internal_node_values(cl, internal_values, all_parent_nodes)
+    return all_parent_nodes
 
+
+def build_ontology_df(all_parent_nodes, all_cell_values, cl):
     ontology_df = pd.DataFrame(data=0, index=all_parent_nodes, columns=all_cell_values)
-
     for cell_id in ontology_df.index:
         try:
             for term in cl[cell_id].subclasses(with_self=True):
@@ -95,7 +49,42 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
                     ontology_df.loc[cell_id, [term.id]] = 1
         except KeyError:
             continue
+    return ontology_df
 
-    cell_parent_mask = build_parent_mask(leaf_values, internal_values, ontology_df, parent_dict)
 
-    return mapping_dict, leaf_values, internal_values, ontology_df, parent_dict, cell_parent_mask
+def build_parent_child_mask(all_cell_values, all_parent_nodes, cl, include_self=False):
+    """
+    M[parent_idx][child_idx] = 0 if parent is ancestor of child, else 1
+    """
+    num_parents = len(all_parent_nodes)
+    num_children = len(all_cell_values)
+    mask = torch.ones(num_parents, num_children)
+
+    parent_to_idx = {p: i for i, p in enumerate(all_parent_nodes)}
+    child_to_idx = {c: j for j, c in enumerate(all_cell_values)}
+
+    for child in all_cell_values:
+        try:
+            ancestors = cl[child].superclasses(with_self=include_self)
+            for term in ancestors:
+                if term.id in parent_to_idx:
+                    mask[parent_to_idx[term.id], child_to_idx[child]] = 0
+        except KeyError:
+            continue
+
+    return mask
+
+
+def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
+    all_cell_values = labels[target_column].astype('category').unique().tolist()
+
+    mapping_dict, leaf_values, internal_values = create_mapping_dicts(all_cell_values, cl)
+    labels['encoded_labels'] = labels[target_column].map(mapping_dict)
+
+    all_parent_nodes = get_parent_nodes(all_cell_values, cl, upper_limit, cl_only, include_leafs)
+    ontology_df = build_ontology_df(all_parent_nodes, all_cell_values, cl)
+
+    # ✅ New correct masking function
+    cell_parent_mask = build_parent_child_mask(all_cell_values, all_parent_nodes, cl, include_self=True)
+
+    return mapping_dict, leaf_values, internal_values, ontology_df, cell_parent_mask
