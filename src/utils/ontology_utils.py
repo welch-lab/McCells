@@ -36,11 +36,11 @@ def get_sub_DAG(cl, cl_number: str) -> set:
         cl_number (str): The CL number (e.g., "CL:0000000") for which to find descendants.
 
     Returns:
-        set: A set of CL numbers representing all downstream nodes.
+        set: A set of all downstream nodes.
     """
     try:
         term = cl[cl_number]
-        return {sub.id for sub in term.subclasses(with_self=True)}
+        return {sub for sub in term.subclasses(with_self=True)}
     except KeyError:
         print(f"Warning: Term ID {cl_number} not found in ontology.")
         return set()

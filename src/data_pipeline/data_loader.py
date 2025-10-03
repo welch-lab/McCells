@@ -17,7 +17,10 @@ def load_filtered_cell_metadata(cl, root_cl_id: str, min_cell_count: int = 5000)
     """
     # Get all descendants of the root CL ID
     print(f"Fetching descendants of {root_cl_id}...")
-    descendant_cell_types = get_sub_DAG(cl, root_cl_id)
+
+    descendant_cell_types = set()
+    for sub in get_sub_DAG(cl, root_cl_id):
+        descendant_cell_types.add(sub.id)
 
     if not descendant_cell_types:
         print(f"No descendants found for {root_cl_id}. Aborting.")
