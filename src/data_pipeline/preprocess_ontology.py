@@ -76,15 +76,19 @@ def build_parent_child_mask(all_cell_values, all_parent_nodes, cl, include_self=
 
 
 def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
+    """
+    This function performs preprocessing on an AnnData object to prepare it for modelling.
+    Only the input labels are included in the mask and mapping dicts.
+    """
     all_cell_values = labels[target_column].astype('category').unique().tolist()
+    mapping_dict = {term_id: i for i, term_id in enumerate(all_cell_values)}
+    leaf_values = [term_id for term_id in all_cell_values if cl[term_id].is_leaf()]
+    internal_values = [term_id for term_id in all_cell_values if not cl[term_id].is_leaf()]
 
-    mapping_dict, leaf_values, internal_values = create_mapping_dicts(all_cell_values, cl)
     labels['encoded_labels'] = labels[target_column].map(mapping_dict)
 
-    all_parent_nodes = get_parent_nodes(all_cell_values, cl, upper_limit, cl_only, include_leafs)
-    ontology_df = build_ontology_df(all_parent_nodes, all_cell_values, cl)
-
-    # ✅ New correct masking function
-    cell_parent_mask = build_parent_child_mask(all_cell_values, all_parent_nodes, cl, include_self=True)
+    # Square ontology_df and mask for only the input labels
+    ontology_df = build_ontology_df(all_cell_values, all_cell_values, cl)
+    cell_parent_mask = build_parent_child_mask(all_cell_values, all_cell_values, cl, include_self=True)
 
     return mapping_dict, leaf_values, internal_values, ontology_df, cell_parent_mask
