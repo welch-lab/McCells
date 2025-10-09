@@ -54,21 +54,20 @@ def build_ontology_df(all_parent_nodes, all_cell_values, cl):
 
 def build_parent_child_mask(all_cell_values, all_parent_nodes, cl, include_self=False):
     """
-    M[parent_idx][child_idx] = 0 if parent is ancestor of child, else 1
+    M[child_idx][parent_idx] = 1 if parent is not subclass of child, else 0
     """
-    num_parents = len(all_parent_nodes)
+    num_parents = len(all_cell_values)
     num_children = len(all_cell_values)
-    mask = torch.ones(num_parents, num_children)
+    mask = torch.ones(num_children, num_parents)
 
-    parent_to_idx = {p: i for i, p in enumerate(all_parent_nodes)}
-    child_to_idx = {c: j for j, c in enumerate(all_cell_values)}
+    type_to_idx = {p: i for i, p in enumerate(all_cell_values)}
 
-    for child in all_cell_values:
+    for cell in all_cell_values:
         try:
-            ancestors = cl[child].superclasses(with_self=include_self)
-            for term in ancestors:
-                if term.id in parent_to_idx:
-                    mask[parent_to_idx[term.id], child_to_idx[child]] = 0
+            children = cl[cell].subclasses(with_self=True)
+            for subclass in children:
+                if subclass.id in type_to_idx:
+                    mask[type_to_idx[cell], type_to_idx[subclass.id]] = 0
         except KeyError:
             continue
 
