@@ -15,4 +15,5 @@ dependencies = [
     "pronto>=2.7.0",
     "cellxgene-census>=1.17.0",
     "torchdata>=0.11.0",
+    "tiledbsoma-ml>=0.1.0",
 ]
