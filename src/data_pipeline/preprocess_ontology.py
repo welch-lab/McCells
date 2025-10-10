@@ -52,24 +52,41 @@ def build_ontology_df(all_parent_nodes, all_cell_values, cl):
     return ontology_df
 
 
-def build_parent_child_mask(all_cell_values, all_parent_nodes, cl, include_self=False):
+def build_parent_child_mask(all_cell_values, all_internal_nodes, mapping_dict, cl, include_self=False):
     """
-    M[child_idx][parent_idx] = 1 if parent is not subclass of child, else 0
+    M[child_idx][parent_idx] = 1 if parent is a superclass of child (including child), else 0
+
+    Note this mask is for internal nodes only;
+    For leaf it is just all ones. (Including itself)
+    For internal nodes, only ancestors are marked as 1.
     """
-    num_parents = len(all_cell_values)
-    num_children = len(all_cell_values)
-    mask = torch.ones(num_children, num_parents)
+    num_all_cell = len(all_cell_values)
+    mask = torch.zeros(num_all_cell, num_all_cell)
 
-    type_to_idx = {p: i for i, p in enumerate(all_cell_values)}
+    # Get the column indices for all internal nodes ahead of time
+    internal_node_indices = [mapping_dict[internal_id] for internal_id in all_internal_nodes]
 
-    for cell in all_cell_values:
-        try:
-            children = cl[cell].subclasses(with_self=True)
-            for subclass in children:
-                if subclass.id in type_to_idx:
-                    mask[type_to_idx[cell], type_to_idx[subclass.id]] = 0
-        except KeyError:
-            continue
+    # Iterate through all cell types, which correspond to the rows
+    for cell_id in all_cell_values:
+        row_idx = mapping_dict[cell_id]
+
+        # Check if the current row represents a leaf or an internal node
+        if cell_id not in all_internal_nodes:
+            # --- This is a LEAF row ---
+            # Set the columns for ALL internal nodes to 1
+            mask[row_idx, internal_node_indices] = 1
+        else:
+            # --- This is an INTERNAL row ---
+            # Find all its ancestors and set their corresponding columns to 1
+            try:
+                ancestors = cl[cell_id].superclasses(with_self=True)
+                for parent in ancestors:
+                    if parent.id in mapping_dict:
+                        col_idx = mapping_dict[parent.id]
+                        mask[row_idx, col_idx] = 1
+            except KeyError:
+                continue
+
 
     return mask
 
@@ -88,6 +105,7 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
 
     # Square ontology_df and mask for only the input labels
     ontology_df = build_ontology_df(all_cell_values, all_cell_values, cl)
-    cell_parent_mask = build_parent_child_mask(all_cell_values, all_cell_values, cl, include_self=True)
+    print(len(all_cell_values), "cell types in the dataset", len(leaf_values), "leaf types,", len(internal_values), "internal types")
+    cell_parent_mask = build_parent_child_mask(all_cell_values, internal_values, mapping_dict, cl, include_self=True)
 
     return mapping_dict, leaf_values, internal_values, ontology_df, cell_parent_mask
