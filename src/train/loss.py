@@ -15,14 +15,8 @@ def output_probability_tensor(outputs, ontology_leaf_df, device):
       sum of probabilities of all leaf descendants of parent i for cell k.
     """
     ontology_tensor = torch.FloatTensor(ontology_leaf_df.values).to(device)
-    
-    # Einsum for batch matrix multiplication: convolve parent-leaf relationships with leaf probabilities
-    # i = parent, j = leaf, k = cell in batch
     probability_tensor = torch.einsum('ij,kj->ik', ontology_tensor, outputs)
-    
-    # Clamp values to be max 1.0 to avoid floating point errors with BCE loss
     probability_tensor = torch.where(probability_tensor > 1, 1.0, probability_tensor)
-
     return probability_tensor
 
 def target_probability_tensor(target_values, ontology_df, mapping_dict, device):
@@ -30,25 +24,42 @@ def target_probability_tensor(target_values, ontology_df, mapping_dict, device):
     Creates the true multi-label vectors for the parent nodes based on the ground truth.
     """
     inv_mapping_dict = {v: k for k, v in mapping_dict.items()}
-    
     target_tensor_list = []
     for target_value in target_values:
         target_cell_id = inv_mapping_dict[target_value.item()]
-        # For each true label, get its column from ontology_df, which lists all its ancestors
         sub_target_tensor = torch.tensor(ontology_df.loc[:, target_cell_id].values, dtype=torch.float).reshape(-1, 1)
         target_tensor_list.append(sub_target_tensor)
-        
     target_tensor = torch.cat(target_tensor_list, dim=1).to(device)
     return target_tensor
 
 # --- Loss Component Functions ---
 
-def compute_leaf_loss(outputs, y_batch, criterion, leaf_weight, device):
-    """Calculates the weighted cross-entropy loss for leaf nodes."""
-    loss = criterion(outputs, y_batch)
+def compute_leaf_loss(outputs, y_batch, criterion, leaf_weight, device, leaf_indices):
+    """
+    Calculates the weighted cross-entropy loss for leaf nodes ONLY.
+    Filters the batch to only include samples whose true label is a leaf node.
+    Returns 0 if no leaf nodes are present in the batch.
+    """
+    # Create a boolean mask to identify samples in the batch with a leaf label
+    is_leaf_mask = torch.tensor(
+        [y.item() in leaf_indices for y in y_batch],
+        device=device
+    )
+    
+    # Filter for leaf-labeled samples
+    leaf_outputs = outputs[is_leaf_mask]
+    leaf_y_batch = y_batch[is_leaf_mask]
+
+    # If there are no leaf samples in this batch, the leaf loss is 0
+    if leaf_outputs.shape[0] == 0:
+        return torch.tensor(0.0, device=device)
+    
+    loss = criterion(leaf_outputs, leaf_y_batch)
     loss = loss * leaf_weight
+    
     if torch.isnan(loss):
         loss = torch.tensor(0.0, device=device)
+        
     return loss
 
 def compute_parent_loss(outputs, y_batch, ontology_df, ontology_leaf_df, mapping_dict, criterion, device):
@@ -62,19 +73,21 @@ def compute_parent_loss(outputs, y_batch, ontology_df, ontology_leaf_df, mapping
 
 class MarginalizationLoss(nn.Module):
     """
-    Calculates a hierarchical loss by combining a weighted leaf loss and a parent loss.
+    Calculates a hierarchical loss by combining a weighted leaf loss (for leaf-labeled data)
+    and a parent loss (for all data).
     """
     def __init__(self, ontology_df, leaf_values, mapping_dict, leaf_weight=8.0, device='cpu'):
         super().__init__()
         self.leaf_weight = leaf_weight
         self.device = device
         
-        # Store data required for loss calculations
         self.ontology_df = ontology_df
         self.ontology_leaf_df = ontology_df[leaf_values].copy()
         self.mapping_dict = mapping_dict
         
-        # Define the criterion for each loss component
+        # Create the leaf_indices set internally.
+        self.leaf_indices = {self.mapping_dict[cid] for cid in leaf_values}
+        
         self.criterion_leafs = nn.CrossEntropyLoss(reduction='mean')
         self.criterion_parents = nn.BCELoss(reduction='mean')
 
@@ -83,10 +96,10 @@ class MarginalizationLoss(nn.Module):
         
         # --- 1. Leaf Loss ---
         loss_leafs = compute_leaf_loss(
-            outputs, y_batch, self.criterion_leafs, self.leaf_weight, self.device
+            outputs, y_batch, self.criterion_leafs, self.leaf_weight, self.device, self.leaf_indices
         )
         
-        # --- 2. Parent Loss ---
+        # --- 2. Parent Loss (for all samples) ---
         loss_parents = compute_parent_loss(
             outputs, y_batch, self.ontology_df, self.ontology_leaf_df, 
             self.mapping_dict, self.criterion_parents, self.device
