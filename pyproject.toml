@@ -14,4 +14,5 @@ dependencies = [
     "torch>=2.8.0",
     "pronto>=2.7.0",
     "cellxgene-census>=1.17.0",
+    "torchdata>=0.11.0",
 ]

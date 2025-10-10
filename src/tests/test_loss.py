@@ -124,5 +124,50 @@ class TestLossFunctions(unittest.TestCase):
 
         self.assertTrue(torch.allclose(predicted_parent_probs, expected_probs))
 
+    def test_internal_node_leaf_loss_is_zero(self):
+        """
+        Tests that leaf loss is zero when the true label is an internal node.
+        """
+        from src.train.loss import MarginalizationLoss
+
+        # 1. Define a hierarchy with an internal node
+        parents = ['parent_A', 'root']
+        leaves = ['leaf_A']
+        all_nodes = parents + leaves
+        
+        ontology_data = {
+            'leaf_A':   [1, 1, 1],
+            'parent_A': [1, 1, 0],
+            'root':     [0, 1, 0],
+        }
+        ontology_df = pd.DataFrame(ontology_data, index=all_nodes)
+        ontology_df = ontology_df[all_nodes]
+
+        leaf_values = ['leaf_A']
+        # mapping_dict now includes an internal node
+        mapping_dict = {'leaf_A': 0, 'parent_A': 1, 'root': 2}
+
+        # 2. Instantiate the loss function
+        loss_fn = MarginalizationLoss(
+            ontology_df=ontology_df,
+            leaf_values=leaf_values,
+            mapping_dict=mapping_dict,
+            device=self.device
+        )
+
+        # 3. Create a batch where the true label is an internal node ('parent_A')
+        y_batch = torch.tensor([1], device=self.device) # Index for 'parent_A'
+        
+        # Model predicts something for the leaf nodes
+        outputs = torch.tensor([[0.9]], device=self.device) # P(leaf_A)
+
+        # 4. Act: Calculate the loss
+        total_loss, loss_leafs, loss_parents = loss_fn(outputs, y_batch)
+
+        # 5. Assert
+        self.assertEqual(loss_leafs.item(), 0.0)
+        self.assertGreater(loss_parents.item(), 0.0)
+        self.assertEqual(total_loss.item(), loss_parents.item())
+
 if __name__ == '__main__':
     unittest.main()
