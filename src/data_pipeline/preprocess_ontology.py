@@ -132,12 +132,37 @@ def build_exclusion_df(all_cell_values, cl):
 def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
     """
     This function performs preprocessing on an AnnData object to prepare it for modelling.
-    Only the input labels are included in the mask and mapping dicts.
+    It returns all the data structures needed by the training pipeline.
+
+    Returns:
+        mapping_dict (dict):
+            Maps CL numbers to integer indices. The dictionary is structured so that
+            all leaf nodes are indexed first (from 0 to N_leaves-1), followed by
+            all internal nodes.
+        leaf_values (list):
+            A sorted list of CL numbers for all leaf nodes in the dataset.
+        internal_values (list):
+            A sorted list of CL numbers for all internal nodes in the dataset.
+        marginalization_df (pd.DataFrame):
+            DataFrame for calculating predicted internal node probabilities.
+            Shape: (internal_nodes, leaf_nodes).
+        parent_child_df (pd.DataFrame):
+            DataFrame for finding the true ancestors of any given cell.
+            Shape: (all_cells, all_cells).
+        exclusion_df (pd.DataFrame):
+            DataFrame for masking loss calculations for descendants of internal nodes.
+            Shape: (all_cells, all_cells).
     """
-    all_cell_values = labels[target_column].astype('category').unique().tolist()
+    all_cell_values_from_data = labels[target_column].astype('category').unique().tolist()
+
+    # Separate into leaf and internal nodes to create a structured ordering
+    leaf_values = sorted([term_id for term_id in all_cell_values_from_data if cl[term_id].is_leaf()])
+    internal_values = sorted([term_id for term_id in all_cell_values_from_data if not cl[term_id].is_leaf()])
+
+    # Create the final ordered list of all cells and the mapping_dict from it
+    # This ensures leaves have indices [0, n_leaves-1]
+    all_cell_values = leaf_values + internal_values
     mapping_dict = {term_id: i for i, term_id in enumerate(all_cell_values)}
-    leaf_values = [term_id for term_id in all_cell_values if cl[term_id].is_leaf()]
-    internal_values = [term_id for term_id in all_cell_values if not cl[term_id].is_leaf()]
 
     labels['encoded_labels'] = labels[target_column].map(mapping_dict)
 
