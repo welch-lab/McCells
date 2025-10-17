@@ -16,33 +16,72 @@ class MarginalizationLoss(nn.Module):
         self.device = device
 
         # --- Store integer indices for slicing ---
-        # The set of global indices that correspond to leaf nodes.
         self.leaf_indices_set = {mapping_dict[cid] for cid in leaf_values}
-        
-        # The CrossEntropyLoss for leaf node predictions.
-        self.criterion_leafs = nn.CrossEntropyLoss(reduction='mean')
+        self.internal_indices = torch.tensor([mapping_dict[cid] for cid in internal_values], dtype=torch.long, device=device)
 
-        # --- Parent loss components will be initialized in the next step ---
+        # --- Sort DataFrame columns/index to match mapping_dict order ---
+        all_cell_values_sorted = sorted(mapping_dict.keys(), key=lambda k: mapping_dict[k])
+        leaf_values_sorted = sorted(leaf_values, key=lambda k: mapping_dict[k])
+        internal_values_sorted = sorted(internal_values, key=lambda k: mapping_dict[k])
+
+        # --- Re-index and convert to performant tensors once at initialization ---
+        # Marginalization tensor (internal x leaf)
+        marginalization_tensor = torch.FloatTensor(
+            marginalization_df.loc[internal_values_sorted, leaf_values_sorted].values
+        ).to(device)
+
+        # Parent-child tensor (all x all)
+        parent_child_tensor = torch.FloatTensor(
+            parent_child_df.loc[all_cell_values_sorted, all_cell_values_sorted].values
+        ).to(device)
+
+        # Exclusion tensor (all x all)
+        exclusion_tensor = torch.FloatTensor(
+            exclusion_df.loc[all_cell_values_sorted, all_cell_values_sorted].values
+        ).to(device)
+
+        self.marginalization_tensor = marginalization_tensor
+        self.parent_child_tensor = parent_child_tensor
+        self.exclusion_tensor = exclusion_tensor
+
+        self.criterion_leafs = nn.CrossEntropyLoss(reduction='mean')
 
     def forward(self, outputs, y_batch):
         """The main forward pass for the loss function."""
         
         # --- 1. Leaf Loss (for leaf-labeled samples only) ---
-        # Find samples in the batch that have a leaf node as their true label.
         is_leaf_mask = torch.tensor([y.item() in self.leaf_indices_set for y in y_batch], device=self.device)
-        
         leaf_outputs = outputs[is_leaf_mask]
         leaf_y_batch = y_batch[is_leaf_mask]
 
         loss_leafs = torch.tensor(0.0, device=self.device)
         if leaf_outputs.shape[0] > 0:
-            # Because of our ordered mapping_dict, the labels in leaf_y_batch are guaranteed
-            # to be in the range [0, n_leaves-1], which matches the output dimensions.
+            # y_batch for leaves are guaranteed to be in [0, n_leaves-1] due to mapping_dict ordering
             loss_leafs = self.criterion_leafs(leaf_outputs, leaf_y_batch) * self.leaf_weight
 
-        # --- 2. Parent Loss (Placeholder) ---
-        loss_parents = torch.tensor(0.0, device=self.device)
-            
+        # --- 2. Parent Loss (for all samples) ---
+        
+        # Predicted parent probabilities (shape: batch_size, num_internal_nodes)
+        # einsum('ij,kj->ki'): (internal, leaf) @ (batch, leaf) -> (batch, internal)
+        output_internal_prob = torch.einsum('ij,kj->ki', self.marginalization_tensor, outputs)
+        output_internal_prob = torch.clamp(output_internal_prob, 0, 1) # Clamp to valid probability range
+
+        # True parent labels (shape: batch_size, num_internal_nodes)
+        true_parents_all = self.parent_child_tensor[y_batch] # Fast integer indexing
+        target_internal_prob = true_parents_all[:, self.internal_indices] # Slice only internal node columns
+
+        # Exclusion mask (shape: batch_size, num_internal_nodes)
+        exclusion_mask_all = self.exclusion_tensor[y_batch] # Fast integer indexing
+        exclusion_mask = exclusion_mask_all[:, self.internal_indices] # Slice only internal node columns
+
+        # Weighted BCE Loss for internal nodes
+        loss_parents = F.binary_cross_entropy(
+            output_internal_prob, 
+            target_internal_prob, 
+            weight=exclusion_mask, 
+            reduction='mean'
+        )
+
         # --- Total Loss ---
         total_loss = loss_leafs + loss_parents
         
