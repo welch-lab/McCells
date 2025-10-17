@@ -40,49 +40,93 @@ def get_parent_nodes(all_cell_values, cl, upper_limit=None, cl_only=False, inclu
     return all_parent_nodes
 
 
-def build_ontology_df(all_parent_nodes, all_cell_values, cl):
-    ontology_df = pd.DataFrame(data=0, index=all_parent_nodes, columns=all_cell_values)
-    for cell_id in ontology_df.index:
+def build_marginalization_df(all_parent_nodes, all_leaf_values, cl):
+    """
+    Creates the marginalization DataFrame to calculate predicted internal node probabilities.
+
+    Function: To calculate the *predicted* probability of internal nodes by summing
+              the probabilities of their descendant leaf nodes.
+    Shape: (Number of Internal Nodes, Number of Leaf Nodes)
+    Index (Rows): Internal Node CL numbers.
+    Columns: Leaf Node CL numbers.
+    Values: df.loc[internal_node, leaf_node] = 1 if the leaf is a descendant
+            of the internal node, 0 otherwise.
+    """
+    marginalization_df = pd.DataFrame(data=0, index=all_parent_nodes, columns=all_leaf_values)
+    for cell_id in marginalization_df.index:
         try:
             for term in cl[cell_id].subclasses(with_self=True):
-                if term.id in ontology_df.columns:
-                    ontology_df.loc[cell_id, [term.id]] = 1
+                if term.id in marginalization_df.columns:
+                    marginalization_df.loc[cell_id, [term.id]] = 1
         except KeyError:
             continue
-    return ontology_df
+    return marginalization_df
 
 
-def build_parent_child_mask(all_cell_values, all_internal_nodes, mapping_dict, cl, include_self=False):
+def build_parent_child_mask(all_cell_values, cl, include_self=False):
     """
-    M[child_idx][parent_idx] = 1 if parent is a superclass of child (including child), else 0
+    Creates the parent-child DataFrame to find the true ancestors for any cell.
 
-    This is for BCELoss with logits. This tells us which parent not coresponds with y = 1 
-    and which corresponds with y = 0.
+    Function: To find the *true* ancestors for any given ground-truth cell label.
+              This is used to create the ground truth vector for the BCE loss.
+    Shape: (Number of All Cells, Number of All Cells)
+    Index (Rows): Child CL numbers (the ground-truth label).
+    Columns: Parent CL numbers.
+    Values: df.loc[child_node, parent_node] = 1 if parent_node is an ancestor
+            of child_node (or is the child_node itself), 0 otherwise.
     """
-    num_all_cell = len(all_cell_values)
-    mask = torch.zeros(num_all_cell, num_all_cell)
+    # Initialize a DataFrame with CL numbers as labels
+    mask_df = pd.DataFrame(
+        data=0,
+        index=all_cell_values,  # Children
+        columns=all_cell_values # Parents
+    )
 
-    # Get the column indices for all internal nodes ahead of time
-    internal_node_indices = [mapping_dict[internal_id] for internal_id in all_internal_nodes]
-
-    # Iterate through all cell types, which correspond to the rows
-    for cell_id in all_cell_values:
-        row_idx = mapping_dict[cell_id]
-
-        
-        # --- This is an INTERNAL row ---
-        # Find all its ancestors and set their corresponding columns to 1
+    # Iterate through all cell types (children)
+    for child_id in all_cell_values:
         try:
-            ancestors = cl[cell_id].superclasses(with_self=True)
-            for parent in ancestors:
-                if parent.id in mapping_dict:
-                    col_idx = mapping_dict[parent.id]
-                    mask[row_idx, col_idx] = 1
+            # Find all its ancestors (parents)
+            ancestors = cl[child_id].superclasses(with_self=include_self)
+            parent_ids = [p.id for p in ancestors if p.id in all_cell_values]
+
+            # Set the corresponding parent columns to 1 for the current child row
+            if parent_ids:
+                mask_df.loc[child_id, parent_ids] = 1
         except KeyError:
             continue
 
+    return mask_df
 
-    return mask
+
+def build_exclusion_df(all_cell_values, cl):
+    """
+    Creates the exclusion DataFrame to mask loss calculations.
+
+    Function: To create a weight mask that *excludes* loss calculations for
+              descendants of a ground-truth label. This is used when the
+              ground-truth is an internal node to avoid penalizing the model
+              for its predictions on the children.
+    Shape: (Number of All Cells, Number of All Cells)
+    Index (Rows): Ground-truth cell CL numbers.
+    Columns: All other cell CL numbers.
+    Values: df.loc[true_label, other_node] = 0 if other_node is a descendant
+            of true_label. Otherwise, the value is 1. A cell is not its own
+            descendant, so the diagonal is 1.
+    """
+    # Default to 1 (include in loss)
+    exclusion_df = pd.DataFrame(1, index=all_cell_values, columns=all_cell_values)
+
+    # For each cell, find its descendants and set their columns to 0 (exclude)
+    for cell_id in all_cell_values:
+        try:
+            # Get descendants, excluding the cell itself
+            descendants = cl[cell_id].subclasses(with_self=False)
+            descendant_ids = [d.id for d in descendants if d.id in all_cell_values]
+            if descendant_ids:
+                exclusion_df.loc[cell_id, descendant_ids] = 0
+        except KeyError:
+            continue
+    return exclusion_df
 
 
 def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_only=False, include_leafs=False):
@@ -97,9 +141,14 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
 
     labels['encoded_labels'] = labels[target_column].map(mapping_dict)
 
-    # Square ontology_df and mask for only the input labels
-    ontology_df = build_ontology_df(all_cell_values, all_cell_values, cl)
+    # Build the ontology dataframe for marginalization (internal nodes x leaf nodes)
+    marginalization_df = build_marginalization_df(internal_values, leaf_values, cl)
     print(len(all_cell_values), "cell types in the dataset", len(leaf_values), "leaf types,", len(internal_values), "internal types")
-    target_BCE = build_parent_child_mask(all_cell_values, internal_values, mapping_dict, cl, include_self=True)
 
-    return mapping_dict, leaf_values, internal_values, ontology_df, target_BCE
+    # Build the parent-child mask as a DataFrame (all_cells x all_cells)
+    parent_child_df = build_parent_child_mask(all_cell_values, cl, include_self=True)
+
+    # Build the exclusion mask for handling internal node losses
+    exclusion_df = build_exclusion_df(all_cell_values, cl)
+
+    return mapping_dict, leaf_values, internal_values, marginalization_df, parent_child_df, exclusion_df

@@ -33,7 +33,7 @@ def main():
 
     print("Starting ontology preprocessing...")
     mapping_dict, leaf_values, internal_values, \
-        ontology_df, parent_dict, cell_parent_mask = preprocess_data_ontology(
+        marginalization_df, parent_child_df, exclusion_df = preprocess_data_ontology(
             cl, cell_obs_metadata, target_column,
             upper_limit=root_cl_id,
             cl_only=True, include_leafs=False
@@ -47,9 +47,17 @@ def main():
 
     print(f"Saving preprocessed data to {output_dir}...")
 
-    # Save ontology_df
-    ontology_df_name = output_dir / f"{today}_ontology_df.csv"
-    ontology_df.to_csv(ontology_df_name)
+    # Save marginalization_df
+    marginalization_df_name = output_dir / f"{today}_marginalization_df.csv"
+    marginalization_df.to_csv(marginalization_df_name)
+
+    # Save parent_child_df
+    parent_child_df_name = output_dir / f"{today}_parent_child_df.csv"
+    parent_child_df.to_csv(parent_child_df_name)
+
+    # Save exclusion_df
+    exclusion_df_name = output_dir / f"{today}_exclusion_df.csv"
+    exclusion_df.to_csv(exclusion_df_name)
 
     # Save mapping_dict
     mapping_dict_name = output_dir / f"{today}_mapping_dict_df.csv"
@@ -63,10 +71,6 @@ def main():
         pickle.dump(leaf_values, fp)
     with open(internal_values_name, "wb") as fp:
         pickle.dump(internal_values, fp)
-
-    # Save cell_parent_mask
-    cell_parent_mask_name = output_dir / f"{today}_cell_parent_mask.pt"
-    torch.save(cell_parent_mask, cell_parent_mask_name)
 
     print("Pipeline finished successfully.")
 
