@@ -17,7 +17,6 @@ class MarginalizationLoss(nn.Module):
 
         # --- Store integer indices for slicing ---
         self.leaf_indices_set = {mapping_dict[cid] for cid in leaf_values}
-        self.internal_indices = torch.tensor([mapping_dict[cid] for cid in internal_values], dtype=torch.long, device=device)
 
         # --- Sort DataFrame columns/index to match mapping_dict order ---
         all_cell_values_sorted = sorted(mapping_dict.keys(), key=lambda k: mapping_dict[k])
@@ -30,14 +29,14 @@ class MarginalizationLoss(nn.Module):
             marginalization_df.loc[internal_values_sorted, leaf_values_sorted].values
         ).to(device)
 
-        # Parent-child tensor (all x all)
+        # Parent-child tensor (all_cells x internal_nodes)
         parent_child_tensor = torch.FloatTensor(
-            parent_child_df.loc[all_cell_values_sorted, all_cell_values_sorted].values
+            parent_child_df.loc[all_cell_values_sorted, internal_values_sorted].values
         ).to(device)
 
-        # Exclusion tensor (all x all)
+        # Exclusion tensor (all_cells x internal_nodes)
         exclusion_tensor = torch.FloatTensor(
-            exclusion_df.loc[all_cell_values_sorted, all_cell_values_sorted].values
+            exclusion_df.loc[all_cell_values_sorted, internal_values_sorted].values
         ).to(device)
 
         self.marginalization_tensor = marginalization_tensor
@@ -67,12 +66,11 @@ class MarginalizationLoss(nn.Module):
         output_internal_prob = torch.clamp(output_internal_prob, 0, 1) # Clamp to valid probability range
 
         # True parent labels (shape: batch_size, num_internal_nodes)
-        true_parents_all = self.parent_child_tensor[y_batch] # Fast integer indexing
-        target_internal_prob = true_parents_all[:, self.internal_indices] # Slice only internal node columns
+        # Tensors are already pre-sliced, so we can directly index them
+        target_internal_prob = self.parent_child_tensor[y_batch] # Fast integer indexing
 
         # Exclusion mask (shape: batch_size, num_internal_nodes)
-        exclusion_mask_all = self.exclusion_tensor[y_batch] # Fast integer indexing
-        exclusion_mask = exclusion_mask_all[:, self.internal_indices] # Slice only internal node columns
+        exclusion_mask = self.exclusion_tensor[y_batch] # Fast integer indexing
 
         # Weighted BCE Loss for internal nodes
         loss_parents = F.binary_cross_entropy(
