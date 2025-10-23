@@ -5,6 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --output=hvgs_computation_%j.log
 #SBATCH --error=hvgs_computation_%j.err
+#SBATCH --partition=sigbio
 
 # Print job info
 echo "======================================"
