@@ -39,9 +39,9 @@ class SimpleNN(nn.Module):
         x = self.hidden_layer_1(x)
         x = self.hidden_layer_2(x)
         x = self.output_layer(x)
-        
-        # The final softmax converts the raw scores (logits) into probabilities,
-        # which is what our MarginalizationLoss function expects.
-        x = F.softmax(x, dim=1)
-        
+
+        # Return logits (raw scores) for CrossEntropyLoss
+        # CrossEntropyLoss applies softmax internally, so we don't do it here
+        # For parent loss, we'll apply softmax manually in the loss function
+
         return x

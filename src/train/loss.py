@@ -46,8 +46,13 @@ class MarginalizationLoss(nn.Module):
         self.criterion_leafs = nn.CrossEntropyLoss(reduction='mean')
 
     def forward(self, outputs, y_batch):
-        """The main forward pass for the loss function."""
-        
+        """The main forward pass for the loss function.
+
+        NOTE: outputs should be LOGITS (raw scores), not probabilities.
+        - CrossEntropyLoss expects logits and applies softmax internally
+        - For parent loss, we convert to probabilities via softmax first
+        """
+
         # --- 1. Leaf Loss (for leaf-labeled samples only) ---
         is_leaf_mask = torch.tensor([y.item() in self.leaf_indices_set for y in y_batch], device=self.device)
         leaf_outputs = outputs[is_leaf_mask]
@@ -55,14 +60,19 @@ class MarginalizationLoss(nn.Module):
 
         loss_leafs = torch.tensor(0.0, device=self.device)
         if leaf_outputs.shape[0] > 0:
-            # y_batch for leaves are guaranteed to be in [0, n_leaves-1] due to mapping_dict ordering
+            # CrossEntropyLoss expects logits (raw scores), not probabilities
+            # It applies softmax internally for numerical stability
             loss_leafs = self.criterion_leafs(leaf_outputs, leaf_y_batch) * self.leaf_weight
 
         # --- 2. Parent Loss (for all samples) ---
-        
+
+        # Convert logits to probabilities for marginalization
+        # Shape stays the same: (batch_size, num_leaf_nodes)
+        output_probs = F.softmax(outputs, dim=1)
+
         # Predicted parent probabilities (shape: batch_size, num_internal_nodes)
         # einsum('ij,kj->ki'): (internal, leaf) @ (batch, leaf) -> (batch, internal)
-        output_internal_prob = torch.einsum('ij,kj->ki', self.marginalization_tensor, outputs)
+        output_internal_prob = torch.einsum('ij,kj->ki', self.marginalization_tensor, output_probs)
         output_internal_prob = torch.clamp(output_internal_prob, 0, 1) # Clamp to valid probability range
 
         # True parent labels (shape: batch_size, num_internal_nodes)
