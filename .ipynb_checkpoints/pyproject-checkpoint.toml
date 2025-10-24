@@ -1,0 +1,20 @@
+[project]
+name = "mccell"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "matplotlib",
+    "jupyter",
+    "ipykernel",
+    "torch>=2.8.0",
+    "pronto>=2.7.0",
+    "cellxgene-census>=1.17.0",
+    "torchdata>=0.11.0",
+    "tiledbsoma-ml>=0.1.0",
+    "scikit-misc>=0.5.1",
+]
