@@ -44,9 +44,9 @@ import cellxgene_census
 from cellxgene_census.experimental.pp import get_highly_variable_genes
 
 # Setup paths
-from src.utils.paths import PROJECT_ROOT
-DATE = '2025-10-17'
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+from src.utils.paths import get_data_folder
+DATE = '2025-10-24'
+PROCESSED_DATA_DIR = get_data_folder(DATE)
 
 print(f"Loading mapping dict from: {PROCESSED_DATA_DIR}")
 mapping_dict_df = pd.read_csv(PROCESSED_DATA_DIR / f"{DATE}_mapping_dict_df.csv", index_col=0)

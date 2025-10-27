@@ -5,12 +5,12 @@ Fast, works offline, no S3 dependencies.
 import pandas as pd
 import pickle
 from pathlib import Path
-from src.utils.paths import PROJECT_ROOT
+from src.utils.paths import PROJECT_ROOT, get_data_folder
 
 # Paths
 BIOMART_FILE = PROJECT_ROOT / "hpc_workaround/data/mart_export.txt"
-DATE = '2025-10-17'
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+DATE = '2025-10-24'
+PROCESSED_DATA_DIR = get_data_folder(DATE)
 
 print("=" * 60)
 print("Selecting 2000 protein-coding genes from BioMart")

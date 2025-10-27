@@ -30,8 +30,13 @@ def load_filtered_cell_metadata(cl, root_cl_id: str, min_cell_count: int = 5000)
     with cellxgene_census.open_soma() as census:
         experiment = census["census_data"]["homo_sapiens"]
 
-        print("Reading cell metadata to filter cell types...")
-        exp_pd = experiment.obs.read(column_names=["cell_type_ontology_term_id"]).concat().to_pandas()
+        print("Reading cell metadata from 10x v3 primary experiments to filter cell types...")
+        # First filter for 10x v3 primary experiments, then count cells
+        exp_pd = experiment.obs.read(
+            value_filter='assay == "10x 3\' v3" and is_primary_data == True',
+            ### potential issue: try different queries, there should be millions but only 25000; progressively adding more filters.
+            column_names=["cell_type_ontology_term_id"]
+        ).concat().to_pandas()
         cell_type_counts = exp_pd["cell_type_ontology_term_id"].value_counts()
 
         # Filter for cell types with a minimum count

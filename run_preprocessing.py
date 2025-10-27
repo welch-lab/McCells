@@ -42,8 +42,13 @@ def main():
     print(f"Preprocessing complete. Found {len(leaf_values)} leaf values and {len(internal_values)} internal values.")
 
     # 4. Save the preprocessed artifacts
-    output_dir = PROJECT_ROOT / "data" / "processed"
+    base_output_dir = PROJECT_ROOT / "data" / "processed"
     today = datetime.today().strftime('%Y-%m-%d')
+    today_folder = datetime.today().strftime('%m-%d')  # Format: MM-DD
+
+    # Create dated folder
+    output_dir = base_output_dir / today_folder
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Saving preprocessed data to {output_dir}...")
 
