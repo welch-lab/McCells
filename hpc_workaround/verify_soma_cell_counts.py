@@ -44,13 +44,15 @@ print("TEST 1: Total Cells in Database")
 print("=" * 80)
 
 try:
-    # Get the shape of the obs dataframe
-    obs_shape = experiment.obs.shape
-    print(f"obs.shape: {obs_shape}")
-    print(f"Total cells in database: {obs_shape[0]:,}")
+    # Count cells by reading soma_joinid
+    print("Counting total cells...")
+    obs_count_df = experiment.obs.read(column_names=["soma_joinid"]).concat().to_pandas()
+    total_cells = len(obs_count_df)
+    print(f"Total cells in database: {total_cells:,}")
+    del obs_count_df  # Free memory
 
 except Exception as e:
-    print(f"❌ ERROR reading obs shape: {e}")
+    print(f"❌ ERROR counting cells: {e}")
     total_cells = None
 
 # Test 2: Read first few cells to check structure
@@ -77,8 +79,8 @@ print("=" * 80)
 try:
     # Try to read all assay values (might be memory intensive if database is large)
     print("\nReading assay column...")
-    if obs_shape[0] > 100000:
-        print(f"⚠️  Database has {obs_shape[0]:,} cells - reading assay column may take time...")
+    if total_cells and total_cells > 100000:
+        print(f"⚠️  Database has {total_cells:,} cells - reading assay column may take time...")
 
     obs_assay = experiment.obs.read(column_names=["assay"]).concat().to_pandas()
     assay_counts = obs_assay['assay'].value_counts()
@@ -93,6 +95,8 @@ try:
     else:
         print(f"\n❌ WARNING: '10x 3' v3' assay NOT found in database!")
         print(f"   Available assays: {assay_counts.index.tolist()[:5]}")
+
+    del obs_assay  # Free memory
 
 except Exception as e:
     print(f"❌ ERROR reading assay distribution: {e}")
@@ -115,6 +119,8 @@ try:
         print(f"\n✓ Primary data cells: {primary_true_count:,}")
     else:
         print(f"\n❌ WARNING: No primary data cells found!")
+
+    del obs_primary  # Free memory
 
 except Exception as e:
     print(f"❌ ERROR reading is_primary_data: {e}")
