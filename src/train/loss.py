@@ -73,7 +73,8 @@ class MarginalizationLoss(nn.Module):
         # Predicted parent probabilities (shape: batch_size, num_internal_nodes)
         # einsum('ij,kj->ki'): (internal, leaf) @ (batch, leaf) -> (batch, internal)
         output_internal_prob = torch.einsum('ij,kj->ki', self.marginalization_tensor, output_probs)
-        output_internal_prob = torch.clamp(output_internal_prob, 0, 1) # Clamp to valid probability range
+        # Clamp with epsilon to prevent log(0) and log(1-1) = -inf in BCE loss
+        output_internal_prob = torch.clamp(output_internal_prob, 1e-7, 1 - 1e-7)
 
         # True parent labels (shape: batch_size, num_internal_nodes)
         # Tensors are already pre-sliced, so we can directly index them
