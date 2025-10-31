@@ -79,8 +79,76 @@ This will:
 - `run_preprocessing.py` - Main preprocessing pipeline
 - `train_blood_cell.ipynb` - Training notebook
 
+## Recent Changes (2025-10-31)
+
+### 4. Fixed Gradient Explosion Issues (Commit cf62d35)
+
+**Problem**: Training on HPC completed but loss exploded from ~20 to 130,000+ at batch 98,306 despite gradient clipping.
+
+**Root Causes Identified**:
+1. **Numerical instability**: `clamp(0, 1)` allowed `log(0) = -inf` in BCE loss
+2. **Parameter drift**: With lr=1e-3 and 98k+ updates, weights drifted to extreme values
+3. **Learning rate too high**: 1e-3 is 2x higher than old reference (SGD 5e-4)
+
+**Fixes Applied** (`src/train/loss.py:77`, `train_blood_cell.ipynb` cell-5, cell-6):
+1. Changed clamping: `torch.clamp(output_internal_prob, 1e-7, 1-1e-7)` prevents log(0)
+2. Lowered learning rate: 1e-3 → 3e-4 (conservative for Adam)
+3. Added Weights & Biases logging to monitor gradients and weights in real-time
+4. Added gradient norm tracking (returned from `clip_grad_norm_`)
+
+### 5. Discovered SOMA set_epoch() Bug
+
+**Critical Finding**: SOMA's `set_epoch()` function **does not work** as documented!
+
+**What it should do**: Combine seed with epoch to get different shuffles each epoch (like PyTorch's DistributedSampler)
+
+**What it actually does**: Only sets `self.epoch = epoch` but **never uses it** in shuffle calculations
+
+**Impact**: With `seed=111`, you get identical batches every epoch regardless of `set_epoch()` calls
+
+**Decision**: Keep `seed=111` for reproducibility, don't call `set_epoch()` since it does nothing. Identical shuffle per epoch is standard practice and not a problem.
+
+### 6. Understanding SOMA Shuffle Behavior
+
+**Two-Stage Shuffle Process**:
+
+1. **Chunk-level shuffle** (shuffle_chunk_size=64, default):
+   - Divides cells into chunks of 64 contiguous cells
+   - Shuffles chunk ORDER randomly
+   - Groups shuffled chunks into IO batches (65,536 cells each)
+
+2. **Cell-level shuffle** (within each IO batch):
+   - Applies `np.random.permuted()` to individual cells
+   - Creates 256-cell mini-batches from shuffled cells
+
+**Potential Cell Type Clustering Issue**:
+- If CellXGene stores cells clustered by type (e.g., cells 1-10k all monocytes)
+- Chunks 1-156 would all be monocyte chunks
+- Even after shuffling, IO batches might be homogeneous
+- Would need to verify with `check_batch_diversity.py` on HPC (Census web API times out)
+
+## Current Training Status
+
+**Branch**: `filter-fix` (commit cf62d35)
+
+**Ready for HPC Training** with these parameters:
+- Learning rate: 3e-4 (Adam optimizer)
+- Gradient clipping: max_norm=1.0
+- Batch size: 256 cells per batch
+- Shuffle: seed=111 (reproducible, same shuffle every epoch)
+- Loss: Epsilon clamping prevents numerical instability
+- Monitoring: Weights & Biases tracks gradients, loss, weights
+
+**Training Configuration**:
+- 6.3M cells → 24,936 batches after 80% train split → 19,665 batches per epoch
+- 5 epochs = 98,325 total batches
+- Model: SimpleNN (23,262 genes → 2048 → 1024 → 256 → 23 leaf nodes)
+- Loss: MarginalizationLoss (leaf CrossEntropy + parent BCE with hierarchy)
+
 ## Important Notes
 - Always use `get_data_folder(date)` when loading processed data
 - Update `DATE` variable in scripts to switch between data versions
 - The 10-24 dataset has the CORRECT filter (10x v3 primary only)
 - The 10-17 dataset has the OLD BUGGY filter (all experiments)
+- **NEVER use SOMA's `set_epoch()` - it's broken and does nothing**
+- Cells ARE shuffled at individual level despite clustering concerns
