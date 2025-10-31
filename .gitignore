@@ -1,2 +1,19 @@
 # Tutorial files
 PYTORCH_TUTORIAL.md
+
+# Model files (too large for git)
+data/saved_models/
+data/checkpoints/
+*.pt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Environment
+.venv/
+venv/
