@@ -17,4 +17,5 @@ dependencies = [
     "torchdata>=0.11.0",
     "tiledbsoma-ml>=0.1.0",
     "scikit-misc>=0.5.1",
+    "wandb>=0.22.3",
 ]
