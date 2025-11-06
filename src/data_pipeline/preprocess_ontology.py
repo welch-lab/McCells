@@ -4,18 +4,6 @@ import pronto
 from src.utils.paths import PROJECT_ROOT
 
 
-def create_mapping_dicts(all_cell_values, cl):
-    mapping_dict = {term_id: i for i, term_id in enumerate(all_cell_values)}
-    leaf_values = []
-    internal_values = []
-    for term_id in all_cell_values:
-        if cl[term_id].is_leaf():
-            leaf_values.append(term_id)
-        else:
-            internal_values.append(term_id)
-    return mapping_dict, leaf_values, internal_values
-
-
 def get_parent_nodes(all_cell_values, cl, upper_limit=None, cl_only=False, include_leafs=False):
     all_parent_nodes = []
     for target in all_cell_values:

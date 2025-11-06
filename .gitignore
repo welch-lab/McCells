@@ -1,6 +1,9 @@
 # Tutorial files
 PYTORCH_TUTORIAL.md
 
+# Local context files
+.claude/
+
 # Model files (too large for git)
 data/saved_models/
 data/checkpoints/
