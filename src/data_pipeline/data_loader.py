@@ -27,7 +27,7 @@ def load_filtered_cell_metadata(cl, root_cl_id: str, min_cell_count: int = 5000)
         return pd.DataFrame()
 
     print("Connecting to CellXGene Census...")
-    with cellxgene_census.open_soma() as census:
+    with cellxgene_census.open_soma(census_version="2025-01-30") as census:
         experiment = census["census_data"]["homo_sapiens"]
 
         print("Reading cell metadata from 10x v3 primary experiments to filter cell types...")

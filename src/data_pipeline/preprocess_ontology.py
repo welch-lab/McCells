@@ -126,12 +126,15 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
     Returns:
         mapping_dict (dict):
             Maps CL numbers to integer indices. The dictionary is structured so that
-            all leaf nodes are indexed first (from 0 to N_leaves-1), followed by
-            all internal nodes.
+            all effective leaf nodes are indexed first (from 0 to N_leaves-1), followed by
+            all internal nodes with children.
         leaf_values (list):
-            A sorted list of CL numbers for all leaf nodes in the dataset.
+            A sorted list of CL numbers for all EFFECTIVE leaf nodes in the dataset.
+            This includes both true ontology leaves AND internal nodes that have no
+            children within the dataset (childless internal nodes).
         internal_values (list):
-            A sorted list of CL numbers for all internal nodes in the dataset.
+            A sorted list of CL numbers for internal nodes that have at least one
+            child (descendant) within the dataset.
         marginalization_df (pd.DataFrame):
             DataFrame for calculating predicted internal node probabilities.
             Shape: (internal_nodes, leaf_nodes).
@@ -144,9 +147,28 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
     """
     all_cell_values_from_data = labels[target_column].astype('category').unique().tolist()
 
-    # Separate into leaf and internal nodes to create a structured ordering
-    leaf_values = sorted([term_id for term_id in all_cell_values_from_data if cl[term_id].is_leaf()])
-    internal_values = sorted([term_id for term_id in all_cell_values_from_data if not cl[term_id].is_leaf()])
+    # Step 1: Initial classification using full ontology
+    ontology_leaf_values = [term_id for term_id in all_cell_values_from_data if cl[term_id].is_leaf()]
+    ontology_internal_values = [term_id for term_id in all_cell_values_from_data if not cl[term_id].is_leaf()]
+
+    # Step 2: Find internal nodes that actually have children IN THE DATASET
+    # An internal node has children if any other node in dataset lists it as an ancestor
+    internal_with_children = set()
+    for node_id in all_cell_values_from_data:
+        for ancestor in cl[node_id].superclasses(with_self=False):
+            if ancestor.id in ontology_internal_values:
+                internal_with_children.add(ancestor.id)
+
+    # Step 3: Childless internal nodes become effective leaves
+    childless_internal = [nid for nid in ontology_internal_values if nid not in internal_with_children]
+
+    # Step 4: Final classification - SORTED for consistent ordering
+    leaf_values = sorted(ontology_leaf_values + childless_internal)
+    internal_values = sorted(internal_with_children)
+
+    print(f"Ontology classification: {len(ontology_leaf_values)} leaves, {len(ontology_internal_values)} internal")
+    print(f"Reclassified {len(childless_internal)} childless internal nodes as effective leaves")
+    print(f"Final: {len(leaf_values)} effective leaves, {len(internal_values)} internal with children")
 
     # Create the final ordered list of all cells and the mapping_dict from it
     all_cell_values = leaf_values + internal_values
@@ -156,7 +178,7 @@ def preprocess_data_ontology(cl, labels, target_column, upper_limit=None, cl_onl
 
     # Build the ontology dataframe for marginalization (internal nodes x leaf nodes)
     marginalization_df = build_marginalization_df(internal_values, leaf_values, cl)
-    print(len(all_cell_values), "cell types in the dataset", len(leaf_values), "leaf types,", len(internal_values), "internal types")
+    print(f"{len(all_cell_values)} cell types in dataset: {len(leaf_values)} effective leaves, {len(internal_values)} internal with children")
 
     # Build the optimized (all_cells x internal_nodes) matrices directly
     parent_child_df = build_parent_child_mask(all_cell_values, internal_values, cl, include_self=True)
