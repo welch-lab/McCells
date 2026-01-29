@@ -2,6 +2,10 @@ import cellxgene_census
 import pandas as pd
 import os
 import time
+import sys
+sys.path.append('.')
+from src.utils.config import CENSUS_VERSION
+
 
 def get_h5ad_links():
     """
@@ -11,10 +15,10 @@ def get_h5ad_links():
     """
     output_filename = "h5ad_links.txt"
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_filepath = os.path.join(script_dir, output_filename)
+    output_filepath = os.path.join(script_dir, '..', 'data', output_filename)
 
-    print("Opening the latest census...")
-    with cellxgene_census.open_soma(census_version="latest") as census:
+    print(f"Opening the census version {CENSUS_VERSION}...")
+    with cellxgene_census.open_soma(census_version=CENSUS_VERSION) as census:
         experiment = census["census_data"]["homo_sapiens"]
 
         print("Reading metadata to filter datasets...")

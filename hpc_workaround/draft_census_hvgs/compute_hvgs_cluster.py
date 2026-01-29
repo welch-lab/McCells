@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+sys.path.append('.')
+
 # Test S3 connectivity first
 print("=" * 60)
 print("Testing S3 Connectivity...")
@@ -42,6 +44,7 @@ print("\n✓ S3 connectivity looks good! Proceeding...\n")
 print("Loading libraries...")
 import cellxgene_census
 from cellxgene_census.experimental.pp import get_highly_variable_genes
+from src.utils.config import CENSUS_VERSION
 
 # Setup paths
 from src.utils.paths import get_data_folder
@@ -60,7 +63,7 @@ print("This may take 5-10 minutes...\n")
 try:
     # Compute HVGs from online census
     print("Opening Census...")
-    with cellxgene_census.open_soma(census_version="2025-01-30") as census:
+    with cellxgene_census.open_soma(census_version=CENSUS_VERSION) as census:
         print("Building query filter...")
         obs_value_filter = f"assay == '10x 3\\' v3' and is_primary_data == True and cell_type_ontology_term_id in {all_cell_values}"
 

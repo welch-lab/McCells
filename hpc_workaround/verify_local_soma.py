@@ -44,6 +44,29 @@ try:
         print(x_df)
         print("\n" + "-" * 80 + "\n")
 
+
+        # --- 4. Verify data is not deprecated by loading a batch ---
+        print("--- Verifying data is not deprecated by loading a batch ---")
+        from tiledbsoma_ml import ExperimentDataset, experiment_dataloader
+        import numpy as np
+
+        with census.axis_query(
+            measurement_name="RNA",
+            obs_query=soma.AxisQuery(value_filter='assay == "10x 3\' v3" and is_primary_data == True'),
+        ) as query:
+            ds = ExperimentDataset(query, obs_column_names=["cell_type_ontology_term_id"],
+                                   layer_name="raw", batch_size=256, shuffle=False)
+            dl = experiment_dataloader(ds)
+
+            for X, obs in dl:
+                print(f"Shape: {X.shape}")
+                print(f"Mean: {X.mean():.4f}")
+                print(f"Std: {X.std():.4f}")
+                print(f"Nonzero: {(X != 0).sum()}/{X.size} ({(X != 0).mean()*100:.1f}%)")
+                print(f"Min: {X.min():.4f}, Max: {X.max():.4f}")
+                break
+        print("\n" + "-" * 80 + "\n")
+
         print("--- Sanity check successful! The SOMA database appears to be functioning correctly. ---")
 
 except Exception as e:

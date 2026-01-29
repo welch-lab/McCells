@@ -7,6 +7,10 @@ import pickle
 from pathlib import Path
 import cellxgene_census
 from cellxgene_census.experimental.pp import get_highly_variable_genes
+
+import sys
+sys.path.append('.')
+from src.utils.config import CENSUS_VERSION
 from src.utils.paths import get_data_folder
 
 # Load the preprocessed data to get cell types
@@ -22,7 +26,7 @@ print(f"Computing HVGs for {len(all_cell_values)} cell types...")
 print("This may take 2-5 minutes...")
 
 # Compute HVGs from online census
-with cellxgene_census.open_soma(census_version="2025-01-30") as census:
+with cellxgene_census.open_soma(census_version=CENSUS_VERSION) as census:
     obs_value_filter = f"assay == '10x 3\\' v3' and is_primary_data == True and cell_type_ontology_term_id in {all_cell_values}"
 
     hvg_df = get_highly_variable_genes(

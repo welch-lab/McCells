@@ -13,7 +13,7 @@ set -e
 # This is crucial for ensuring the command is found in an sbatch environment.
 export PATH=$HOME/bin:$PATH
 # Download human data
-RELEASE_TAG="2025-01-30"
+RELEASE_TAG="2025-11-08"
 S3_URI="s3://cellxgene-census-public-us-west-2/cell-census/${RELEASE_TAG}/soma/census_data/homo_sapiens/"
 OUTPUT_DIR="/scratch/sigbio_project_root/sigbio_project25/jingqiao/mccell-single/soma_db_homo_sapiens"
 
