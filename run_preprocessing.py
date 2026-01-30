@@ -6,6 +6,7 @@ from src.utils.ontology_utils import load_ontology
 from src.data_pipeline.data_loader import load_filtered_cell_metadata
 from src.data_pipeline.preprocess_ontology import preprocess_data_ontology
 from src.utils.paths import PROJECT_ROOT
+from src.utils.config import ROOT_CL_ID
 
 def main():
     """
@@ -18,8 +19,7 @@ def main():
     if cl is None:
         return
 
-    # Define the root of the ontology subgraph to be processed
-    root_cl_id = 'CL:0000988'  # hematopoietic cell
+    root_cl_id = ROOT_CL_ID
 
     # 2. Load filtered cell metadata from CellXGene Census
     cell_obs_metadata = load_filtered_cell_metadata(cl, root_cl_id=root_cl_id)
@@ -44,10 +44,10 @@ def main():
     # 4. Save the preprocessed artifacts
     base_output_dir = PROJECT_ROOT / "data" / "processed"
     today = datetime.today().strftime('%Y-%m-%d')
-    today_folder = datetime.today().strftime('%m-%d')  # Format: MM-DD
+    cl_folder = root_cl_id.replace(":", "")  # CL:0000988 -> CL0000988
+    today_folder = datetime.today().strftime('%m-%d')
 
-    # Create dated folder
-    output_dir = base_output_dir / today_folder
+    output_dir = base_output_dir / f"{cl_folder}_{today_folder}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Saving preprocessed data to {output_dir}...")

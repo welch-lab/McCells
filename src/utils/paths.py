@@ -5,20 +5,21 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-def get_data_folder(date: str) -> Path:
+def get_data_folder(date: str, root_cl_id: str = "CL:0000988") -> Path:
     """
-    Get the path to the processed data folder for a given date.
+    Get the path to the processed data folder for a given date and root CL ID.
 
     Args:
         date (str): Date string in 'YYYY-MM-DD' format (e.g., '2025-10-24')
+        root_cl_id (str): Root CL ID (e.g., 'CL:0000988'). Defaults to blood cells.
 
     Returns:
-        Path: Path to data/processed/MM-DD/ folder
+        Path: Path to data/processed/{CL_ID}_{MM-DD}/ folder
 
     Example:
-        >>> get_data_folder('2025-10-24')
-        Path('/path/to/project/data/processed/10-24')
+        >>> get_data_folder('2025-10-24', 'CL:0000988')
+        Path('/path/to/project/data/processed/CL0000988_10-24')
     """
-    # Extract MM-DD from YYYY-MM-DD
+    cl_folder = root_cl_id.replace(":", "")
     date_folder = date[5:]  # Gets 'MM-DD' from 'YYYY-MM-DD'
-    return PROJECT_ROOT / "data" / "processed" / date_folder
+    return PROJECT_ROOT / "data" / "processed" / f"{cl_folder}_{date_folder}"
