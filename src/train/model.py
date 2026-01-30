@@ -18,21 +18,21 @@ class SimpleNN(nn.Module):
             nn.Linear(input_dim, hidden_dim_1),
             nn.BatchNorm1d(hidden_dim_1),
             nn.ReLU(),
-            nn.Dropout(0.1)
+            nn.Dropout(0.2)
         )
 
         self.hidden_layer_1 = nn.Sequential(
             nn.Linear(hidden_dim_1, hidden_dim_2),
             nn.BatchNorm1d(hidden_dim_2),
             nn.ReLU(),
-            nn.Dropout(0.1)
+            nn.Dropout(0.2)
         )
 
         self.hidden_layer_2 = nn.Sequential(
             nn.Linear(hidden_dim_2, hidden_dim_3),
             nn.BatchNorm1d(hidden_dim_3),
             nn.ReLU(),
-            nn.Dropout(0.1)
+            nn.Dropout(0.2)
         )
         
         self.output_layer = nn.Linear(hidden_dim_3, output_dim)
